@@ -1,47 +1,60 @@
 from rest_framework.views import APIView 
-from rest_framework import generics
+from rest_framework import generics,mixins,status
 from rest_framework.response import Response
 from django.db.models import Q
 from . import models
 from . import serializers
 from django.contrib.auth.models import User
 
-# class ProductListAPIView(generics.ListCreateAPIView):
+
+class ProductAPIView(APIView):
+    queryset=models.Product.objects.all()
+
+    def get(self,request):
+        serializer=serializers.ProductSerializer(self.queryset.all(),many=True,context={'request':request})
+
+        return Response(serializer.data)
+    
+    def post(self,request):
+        serializer=serializers.ProductSerializer(data=request.data,context={'request':request})
+        print(serializer)
+        if serializer.is_valid():
+             serializer.save()   
+             return Response(serializer.data,status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
+
+product_view=ProductAPIView.as_view()
+
+
+# class ProductCreateGenericView(generics.CreateAPIView):
 #     queryset = models.Product.objects.all()
-#     serializer_class=serializers.ProductSerializers
+#     serializer_class = serializers.ProductSerializer
+# product_create=ProductCreateGenericView.as_view()
 
-#     def get_queryset(self):
-#         return super().get_queryset()
 
-# product_list_create_view=ProductListAPIView.as_view()
+# class ProductDetailAPIView(APIView):
+#    queryset=models.Product.objects.all()
 
-# class ProductUpdateAPIview(generics.UpdateAPIView):
-#     queryset = models.Product.objects.all()
-#     serializer_class=serializers.ProductSerializers
+#    def get(self,request,pk):
+#      qs=generics.get_object_or_404(models.Product,id=pk)
+#      serializer=serializers.ProductDetailSerializers(qs,many=True,context={'request':request})     
      
-#     def perform_update(self, serializer):
-#         return super().perform_update(serializer)
+#      return Response(serializer.data)
+   
+# product_detail=ProductDetailAPIView.as_view()
 
-# product_update_view=ProductUpdateAPIview.as_view()
 
+class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
 
-# class ProductListAPIView(APIView):
-#       # queryset = models.Product.objects.all()
-#       serializer_class=serializers.ProductSerializers
-  
-#       def get(self,request,pk):
-#           # user=self.request.user
-#           queryset = models.Product.objects.all()
-#           qs=queryset.filter(Q(name='lipstick'))
-#           print(qs)
-#         #   username=User.objects.get(user=user)
-#         #   print(username)
-#         #   print(request)
-#           serializer=serializers.ProductSerializers(qs,many=True,context={'request':request})
-#           # print(serializer)
-#           print(serializer.data)
-#           return Response(serializer.data)
-# product_list_create_view=ProductListAPIView.as_view()
+    queryset=models.Product.objects.all()
+    serializer_class=serializers.ProductDetailSerializers
+    lookup_field='pk'
+
+    def get(self,request,*args,**kwargs):
+        return self.retrieve(request,*args,**kwargs)
+    
+product_detail=ProductDetailView.as_view()
 
 
 class ProductSearch(APIView):
@@ -54,7 +67,6 @@ class ProductSearch(APIView):
         return context
         
      def get(self,request):
-     
         category=self.request.GET.get('ct',None)
         name=self.request.GET.get('n',None)
         brand=self.request.GET.get('b',None)
@@ -62,19 +74,19 @@ class ProductSearch(APIView):
         queryset=self.queryset.all()
 
         if name:
-            queryset=queryset.filter(Q(name__icontains=name)) 
+            queryset=queryset.filter(Q(product__name__icontains=name)) 
 
         if brand:
-            queryset=queryset.filter(Q(brand__icontains=brand)) 
+            queryset=queryset.filter(Q(brand__name__icontains=brand)) 
 
         if category:
-            queryset=queryset.filter(Q(category=category)) 
+            queryset=queryset.filter(Q(category__name__icontains=category)) 
         
         if  price is not None and price.isdigit():
                 value=int(price)
                 queryset=queryset|self.queryset.filter(Q(base_price=value)|Q(base_price__lte=value+1000))
 
-        serializer=serializers.ProductSerializers(queryset,many=True,context={'request':request})
+        serializer=serializers.ProductSearchSerializers(queryset,many=True,context={'request':request})
 
         return Response(serializer.data)
 product_search_view=ProductSearch.as_view()

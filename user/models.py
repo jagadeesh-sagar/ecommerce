@@ -70,7 +70,7 @@ class Product(models.Model):
     seller = models.ForeignKey('inventory.Seller', on_delete=models.CASCADE)
     name=models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
-    base_price=models.DecimalField(max_digits=10,decimal_places=2)
+    base_price=models.DecimalField(max_digits=10,decimal_places=2,null=False)
     category=models.ForeignKey(Category,on_delete=models.CASCADE,related_name='products')
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='products')
     sku = models.CharField(max_length=100, unique=True, null=True, blank=True)
