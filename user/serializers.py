@@ -36,7 +36,26 @@ class ProductVariantSerializers(serializers.ModelSerializer):
        return obj.product.name
         
 
-class ProductSerializers(serializers.ModelSerializer):
+class ProductSearchSerializers(serializers.ModelSerializer):
+
+    product_name=serializers.CharField(source="name")
+    category_name=serializers.CharField(source='category.name',read_only=True)
+    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
+    brand_name=  serializers.CharField(source='brand.name',read_only=True)
+    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
+    seller_name=serializers.SerializerMethodField(read_only=True)
+    variants=ProductVariantSerializers(many=True,read_only=True)
+    seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
+
+    class Meta:
+        model=models.Product
+        fields=['seller','seller_name','product_name','category_name','base_price','category','brand_name','variants','brand']
+
+    def get_seller_name(self, obj):
+       return obj.seller.user.username
+    
+
+class ProductDetailSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
     category_name=serializers.CharField(source='category.name',read_only=True)
@@ -60,3 +79,19 @@ class ProductSerializers(serializers.ModelSerializer):
     def get_seller_name(self, obj):
        return obj.seller.user.username
     
+
+    
+class ProductSerializer(serializers.ModelSerializer):
+
+    product_name=serializers.CharField(source="name")
+    category_name=serializers.CharField(source='category.name',read_only=True)
+    category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
+    brand_name=  serializers.CharField(source='brand.name',read_only=True)
+    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
+    reviews=ReviewSerializers(many=True,read_only=True)     
+
+    class Meta:
+        model=models.Product
+        fields=['product_name','description','category_name','base_price','category','brand_name','brand','reviews']
+
+
