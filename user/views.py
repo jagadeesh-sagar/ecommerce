@@ -5,8 +5,8 @@ from django.db.models import Q
 from . import models
 from . import serializers
 from django.contrib.auth.models import User
-
-
+from inventory.models import Seller
+from django.shortcuts import get_object_or_404
 class ProductAPIView(APIView):
     queryset=models.Product.objects.all()
 
@@ -16,8 +16,7 @@ class ProductAPIView(APIView):
         return Response(serializer.data)
     
     def post(self,request):
-        serializer=serializers.ProductSerializer(data=request.data,context={'request':request})
-        print(serializer)
+        serializer=serializers.ProductCreateSerializers(data=request.data,context={'request':request})
         if serializer.is_valid():
              serializer.save()   
              return Response(serializer.data,status=status.HTTP_201_CREATED)
@@ -27,22 +26,10 @@ class ProductAPIView(APIView):
 product_view=ProductAPIView.as_view()
 
 
-# class ProductCreateGenericView(generics.CreateAPIView):
-#     queryset = models.Product.objects.all()
-#     serializer_class = serializers.ProductSerializer
-# product_create=ProductCreateGenericView.as_view()
-
-
-# class ProductDetailAPIView(APIView):
-#    queryset=models.Product.objects.all()
-
-#    def get(self,request,pk):
-#      qs=generics.get_object_or_404(models.Product,id=pk)
-#      serializer=serializers.ProductDetailSerializers(qs,many=True,context={'request':request})     
-     
-#      return Response(serializer.data)
-   
-# product_detail=ProductDetailAPIView.as_view()
+class ProductCreateGenericView(generics.CreateAPIView):
+    queryset = models.Product.objects.all()
+    serializer_class = serializers.ProductCreateSerializers
+product_create=ProductCreateGenericView.as_view()
 
 
 class ProductDetailView(mixins.RetrieveModelMixin,generics.GenericAPIView):
@@ -62,7 +49,6 @@ class ProductSearch(APIView):
 
      def get_serializer_context(self):
         context = super().get_serializer_context()
-        print(self.requst.user)
         context['user'] = self.request.user
         return context
         
@@ -97,3 +83,49 @@ class ProductImageListview(generics.RetrieveAPIView):
     serializer_class=serializers.ProductImageSerializers
 
 productImage_retrieve_view=ProductImageListview.as_view()
+
+
+class AddressView(generics.ListCreateAPIView):
+    queryset = models.Address.objects.all()
+    serializer_class = serializers.AddressSerializers
+address_create=AddressView.as_view()
+
+
+class CategoryListCreateview(generics.ListCreateAPIView):
+    queryset = models.Category.objects.all()
+    serializer_class = serializers.CategorySerializers
+category_view=CategoryListCreateview.as_view()
+
+
+class SellerAnswers(APIView):
+    def get_queryset(self):
+        try:
+            seller=Seller.objects.get(user=self.request.user)
+            return models.QnA.objects.filter(product__seller=seller)
+        except Seller.DoesNotExist:
+           return models.QnA.objects.none()
+
+    def get(self,request,*args,**kwargs):
+        pk=kwargs['pk']
+        question=get_object_or_404(self.get_queryset(),id=pk)
+        serializer=serializers.SellerAnswersSerializers(question,context={'request':request})
+        
+        return Response(serializer.data)
+    
+    def patch(self,request,*args,**kwargs):
+        pk=kwargs['pk']
+        question=get_object_or_404(self.get_queryset(),id=pk)
+        serializer=serializers.SellerAnswersSerializers(question,data=request.data,partial=True,context={'request':request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+seller_ans=SellerAnswers.as_view()
+
+
+class CustomerQuestion(generics.CreateAPIView):
+    queryset=models.QnA.objects.all()
+    serializer_class=serializers.CustomerQuestionSerializers
+    lookup_field='pk'
+customer_qxns=CustomerQuestion.as_view()
