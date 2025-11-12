@@ -79,7 +79,7 @@ class Product(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-          return self.name
+          return f'{self.name}'
 
 
 class ProductVariant(models.Model):
@@ -149,12 +149,13 @@ class Cart(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return f"Cart of {self.user.username}"
+        return f"Cart of {self.user}"
 
 
 class CartItem(models.Model):
     cart=models.ForeignKey(Cart,on_delete=models.CASCADE,related_name='items')
-    product_variant=models.ForeignKey(ProductVariant,on_delete=models.CASCADE)
+    product=models.ForeignKey(Product,on_delete=models.CASCADE)
+    product_variant=models.ForeignKey(ProductVariant,on_delete=models.SET_NULL,null=True,blank=True)
     quantity=models.IntegerField(default=1,validators=[MinValueValidator(1)])
     added_at = models.DateTimeField(auto_now_add=True)
 
@@ -206,7 +207,6 @@ class Order(models.Model):
     
     def __str__(self):
         return f"Order {self.order_number}"
-
 
 
 class OrderItem(models.Model):

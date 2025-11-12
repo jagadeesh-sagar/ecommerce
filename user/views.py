@@ -7,6 +7,8 @@ from . import serializers
 from django.contrib.auth.models import User
 from inventory.models import Seller
 from django.shortcuts import get_object_or_404
+
+
 class ProductAPIView(APIView):
     queryset=models.Product.objects.all()
 
@@ -98,9 +100,11 @@ category_view=CategoryListCreateview.as_view()
 
 
 class SellerAnswers(APIView):
+   
     def get_queryset(self):
         try:
             seller=Seller.objects.get(user=self.request.user)
+            print(seller)
             return models.QnA.objects.filter(product__seller=seller)
         except Seller.DoesNotExist:
            return models.QnA.objects.none()
@@ -109,7 +113,6 @@ class SellerAnswers(APIView):
         pk=kwargs['pk']
         question=get_object_or_404(self.get_queryset(),id=pk)
         serializer=serializers.SellerAnswersSerializers(question,context={'request':request})
-        
         return Response(serializer.data)
     
     def patch(self,request,*args,**kwargs):
@@ -127,5 +130,46 @@ seller_ans=SellerAnswers.as_view()
 class CustomerQuestion(generics.CreateAPIView):
     queryset=models.QnA.objects.all()
     serializer_class=serializers.CustomerQuestionSerializers
-    lookup_field='pk'
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['id'] = self.request.GET.get('q')
+        return context
+    
 customer_qxns=CustomerQuestion.as_view()
+
+
+class CartItem(APIView):
+   
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['user'] = self.request.user
+        return context
+  
+    def get(self,request):
+        cart=models.Cart.objects.get_or_create(user=self.request.user)
+        cartitem=models.CartItem.objects.filter(Q(cart__user=cart[0].user))
+        serializer=serializers.CartItemRetrieveSerializers(cartitem,many=True,context={'request':request})
+        return Response(serializer.data)
+
+    def post(self,request):
+
+        product=request.GET.get('product')
+        variant=request.GET.get('variant')
+
+        product=int(product) if product is not None else None
+        variant=int(variant) if variant is not None else None
+        serializer=serializers.CartItemCreateSerializers(data=request.data,context={'request':request,'product':product,'variant':variant})
+    # serializer=serializers.CartItemCreateSerializers(data=request.data,context={'request':request,'product':kwargs.get('product'),'variant':kwargs.get('product')})
+        if serializer.is_valid():   
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
+
+cartitem=CartItem.as_view()
+    
+        
+
+        

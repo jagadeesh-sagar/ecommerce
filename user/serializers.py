@@ -6,6 +6,7 @@ from . import models
 from inventory.models import Seller 
 from django.db.models import Q
 from django.utils import timezone
+from rest_framework.reverse import reverse
 
 
 class CategorySerializers(serializers.ModelSerializer):
@@ -43,21 +44,45 @@ class ProductVariantSerializers(serializers.ModelSerializer):
 
 class CustomerQuestionSerializers(serializers.ModelSerializer):
   
-    # product_name=serializers.CharField(source='product.name')  
+    endpoint=serializers.SerializerMethodField()
+    id=serializers.CharField(read_only=True)
+  
     class Meta:
         model=models.QnA
-        fields=['id','question','product']
+        fields=["id",'question','endpoint']
+    
+    def get_endpoint(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+      
+        url=reverse('qna',request=request)
+        return url
 
     def create(self, validated_data):
+        product=self.context.get('id')
+        validated_data['product_id']=product
         validated_data['user']=self.context['request'].user
+        print(validated_data)
         return super().create(validated_data)
     
 
 class QnA(serializers.ModelSerializer):
 
+    endpoint=serializers.SerializerMethodField()
+    product=serializers.CharField(write_only=True)
+    id=serializers.CharField(write_only=True)
+
     class Meta:
         model=models.QnA
-        fields=['id','question','answer','product']
+        fields=['id','question','answer','product','endpoint']
+
+    def get_endpoint(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse('qna-ans',kwargs={"pk":obj.id},request=request)
+        return url
 
     def create(self, validated_data):
         validated_data['user']=self.context['request'].user
@@ -96,16 +121,24 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     variants=ProductVariantSerializers(many=True,read_only=True)
     reviews=ReviewSerializers(many=True,read_only=True)
     seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
+    new_question=serializers.SerializerMethodField()
     questions=QnA(many=True)
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','sku','is_active','images','variants','reviews','questions']
+            'brand','sku','is_active','images','variants','reviews','questions','new_question']
 
     def get_seller_name(self, obj):
        return obj.seller.user.username
+    
+    def get_new_question(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse('qna',request=request)
+        return f'{url}?q={obj.id}'
     
 
 class ProductCreateSerializers(serializers.ModelSerializer):
@@ -190,6 +223,66 @@ class SellerAnswersSerializers(serializers.ModelSerializer):
             instance.is_answered=True
         instance.answered_at=timezone.now()
    
-        print(validated_data)
         return super().update(instance,validated_data)
+
+
+class ProductCartSerializers(serializers.ModelSerializer):
+
+    product_name=serializers.CharField(source="name")
+    category_name=serializers.CharField(source='category.name',read_only=True)
+    brand_name=  serializers.CharField(source='brand.name',read_only=True)
+    seller_name=serializers.SerializerMethodField(read_only=True)
+    images=ProductImageSerializers(many=True,read_only=True)
+    variants=ProductVariantSerializers(many=True,read_only=True)
+    reviews=ReviewSerializers(many=True,read_only=True)
+  
+
+    class Meta:
+        model=models.Product
+        fields=['product_name','category_name','brand_name','seller_name',
+                'images','variants','reviews']
+
+    def get_seller_name(self, obj):
+       return obj.seller.user.username
+    
+
+class CartItemRetrieveSerializers(serializers.ModelSerializer):
+
+    product=ProductCartSerializers(read_only=True)
+    class Meta:
+        model=models.CartItem
+        fields=['cart','product','product_variant','quantity']
+
+
+class CartItemCreateSerializers(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.CartItem
+        fields = ['quantity']
+
+    def create(self, validated_data):
+        print(self.context)
+
+        user = self.context['request'].user
+        cart, created = models.Cart.objects.get_or_create(user=user)
+
+        product_id = self.context.get('product')
+        variant_id = self.context.get('variant')
+
+        product = models.Product.objects.get(id=product_id)
+
+        if variant_id == 0:
+            product_variant = None
+        else:
+            product_variant = models.ProductVariant.objects.get(id=variant_id)
+
+        validated_data['cart'] = cart
+        validated_data['product'] = product
+        validated_data['product_variant'] = product_variant
+
+        return super().create(validated_data)
+
+
+
+
     

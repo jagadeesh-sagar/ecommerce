@@ -9,8 +9,9 @@ urlpatterns=[
     path('product/search/',views.product_search_view,name='product-search'),
     path('product/image/<int:pk>',views.productImage_retrieve_view,name='product-image'),
     path('product/categories/',views.category_view,name='category-create'),
-    path('product/qna/ans/<int:pk>',views.seller_ans,name='qna-ans'),
-    path('product/qna/<int:pk>',views.customer_qxns,name='qna'),
+    path('product/seller-ans/<int:pk>',views.seller_ans,name='qna-ans'),
+    path('product/customer-qxn/',views.customer_qxns,name='qna'),
     path('address/',views.address_create,name='address-create'),
+    path('cart/',views.cartitem,name='cart-item'),
 
 ]
