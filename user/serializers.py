@@ -239,7 +239,7 @@ class ProductCartSerializers(serializers.ModelSerializer):
 
     class Meta:
         model=models.Product
-        fields=['product_name','category_name','brand_name','seller_name',
+        fields=['id','product_name','category_name','brand_name','seller_name',
                 'images','variants','reviews']
 
     def get_seller_name(self, obj):
@@ -261,8 +261,7 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
         fields = ['quantity']
 
     def create(self, validated_data):
-        print(self.context)
-
+    
         user = self.context['request'].user
         cart, created = models.Cart.objects.get_or_create(user=user)
 
@@ -281,6 +280,11 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
         validated_data['product_variant'] = product_variant
 
         return super().create(validated_data)
+    
+
+
+
+
 
 
 

@@ -155,19 +155,64 @@ class CartItem(APIView):
 
     def post(self,request):
 
-        product=request.GET.get('product')
-        variant=request.GET.get('variant')
+        product_id=request.GET.get('product')
+        variant_id=request.GET.get('variant')
+        
+        if not product_id:
+            return Response({"error":"product is required"},status=400)
+        cart,_=models.Cart.objects.get_or_create(user=request.user)
 
-        product=int(product) if product is not None else None
-        variant=int(variant) if variant is not None else None
-        serializer=serializers.CartItemCreateSerializers(data=request.data,context={'request':request,'product':product,'variant':variant})
-    # serializer=serializers.CartItemCreateSerializers(data=request.data,context={'request':request,'product':kwargs.get('product'),'variant':kwargs.get('product')})
-        if serializer.is_valid():   
-            serializer.save()
-            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        cart_item=models.CartItem.objects.filter(
+            cart=cart,
+            product_id=product_id,
+            product_variant_id=variant_id if variant_id !="0" else None).first()
+        
+        if cart_item:
+
+            cart_item.quantity+=int(request.data.get("quantity",1))
+            if cart_item.quantity<=0:
+                cart_item.delete()
+                return Response({"message":"Item removed from cart"},status=200)
+            
+            cart_item.save()
+            serializer=serializers.CartItemRetrieveSerializers(cart_item)
+            return Response(
+                {"message":"Updated quantity","item":serializer.data},
+                status=200
+            )
+
+        serializer=serializers.CartItemCreateSerializers(data=request.data,
+                                                         context={'request':request,'product':int(product_id),'variant':int(variant_id) if variant_id else 0,})
+    
+        if serializer.is_valid():  
+            cart_item=serializer.save() 
+            output=serializers.CartItemRetrieveSerializers(cart_item).data
+
+            return Response(
+            {"message": "Item added", "item": output},
+            status=status.HTTP_201_CREATED)
         
         return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self,request):
+        
+        product_id=request.GET.get('product')
+        variant_id=request.GET.get('variant')
+        if not product_id:
+            return Response({"error":"product is required"},status=400)
+        cart=models.Cart.objects.get(user=request.user)
 
+        cart_item=models.CartItem.objects.filter(
+            cart=cart,
+            product_id=product_id,
+            product_variant_id=variant_id if variant_id !="0" else None)
+        cart_item.delete()
+
+        return Response(
+                {"message":"deleted succefully"},
+                status=200
+            )
+              
 cartitem=CartItem.as_view()
     
         
