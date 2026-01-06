@@ -1,4 +1,4 @@
-from rest_framework.views import APIView 
+from rest_framework.views import APIView
 from rest_framework import generics,mixins,status
 from rest_framework.response import Response
 from django.db.models import Q
@@ -104,7 +104,6 @@ class SellerAnswers(APIView):
     def get_queryset(self):
         try:
             seller=Seller.objects.get(user=self.request.user)
-            print(seller)
             return models.QnA.objects.filter(product__seller=seller)
         except Seller.DoesNotExist:
            return models.QnA.objects.none()
@@ -215,7 +214,21 @@ class CartItem(APIView):
               
 cartitem=CartItem.as_view()
 
-    
-        
 
+class ReviewView(APIView):
+  
+    queryset=models.Review.objects.all()
+    def post(self,request):
+        product_id = request.GET.get('q')  
+        if not product_id:
+            return Response(
+                {"error": "Product id (q) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        serializer=serializers.ReviewSerializers(data=request.data,context={'id': product_id,'request':request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
         
+Review_list_view=ReviewView.as_view()

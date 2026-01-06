@@ -1,3 +1,5 @@
-django
+Django
 djangorestframework
-mysqlclient
+django-cors-headers
+gunicorn
+djangorestframework-simplejwt

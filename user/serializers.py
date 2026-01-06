@@ -16,7 +16,6 @@ class CategorySerializers(serializers.ModelSerializer):
 
 
 class ProductImageSerializers(serializers.ModelSerializer):
-    # product_name=serializers.CharField(source='product.name')
     class Meta:
         model = models.ProductImage
         fields = ['image_url', 'alt_text', 'video_url', 
@@ -27,10 +26,20 @@ class ReviewSerializers(serializers.ModelSerializer):
 
     class Meta:
         model = models.Review
-        fields = ['user','rating', 'review_text', 'review_image',
-                  
-                  'review_image','helpful_count']
+        fields = [
+            'rating',
+            'review_text',
+            'review_image',
+            'review_video',
+            'is_verified_purchase',
+        ]
     
+    def create(self,validated_data):
+        product=self.context.get('id')
+        validated_data['product_id']=product
+        validated_data['user']=self.context['request'].user
+        return super().create(validated_data)
+
 
 class ProductVariantSerializers(serializers.ModelSerializer):
  
@@ -63,7 +72,6 @@ class CustomerQuestionSerializers(serializers.ModelSerializer):
         product=self.context.get('id')
         validated_data['product_id']=product
         validated_data['user']=self.context['request'].user
-        print(validated_data)
         return super().create(validated_data)
     
 
@@ -120,15 +128,17 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     images=ProductImageSerializers(many=True,read_only=True)
     variants=ProductVariantSerializers(many=True,read_only=True)
     reviews=ReviewSerializers(many=True,read_only=True)
+    new_review=serializers.SerializerMethodField()
     seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
     new_question=serializers.SerializerMethodField()
     questions=QnA(many=True)
+
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','sku','is_active','images','variants','reviews','questions','new_question']
+            'brand','sku','is_active','images','variants','reviews','new_review','questions','new_question']
 
     def get_seller_name(self, obj):
        return obj.seller.user.username
@@ -138,6 +148,13 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         if request is None:
             return None
         url=reverse('qna',request=request)
+        return f'{url}?q={obj.id}'
+    
+    def get_new_review(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse(f'product-review',request=request)
         return f'{url}?q={obj.id}'
     
 
@@ -281,9 +298,6 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
 
         return super().create(validated_data)
     
-
-
-
 
 
 
