@@ -33,6 +33,19 @@ class ReviewSerializers(serializers.ModelSerializer):
             'review_video',
             'is_verified_purchase',
         ]
+
+    def validate(self,attrs):
+        user=self.context["request"].user
+        product_id=self.context.get('id')
+
+        if self.instance is not None:
+            return attrs
+        
+        if models.Review.objects.filter(user=user,product_id=product_id).exists():
+            raise serializers.ValidationError(
+                'you have already reviewed this product ')
+        
+        return attrs
     
     def create(self,validated_data):
         product=self.context.get('id')
@@ -132,13 +145,14 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     seller=serializers.PrimaryKeyRelatedField(queryset=Seller.objects.all(),write_only=True)
     new_question=serializers.SerializerMethodField()
     questions=QnA(many=True)
+    whishlist=serializers.SerializerMethodField()
 
 
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','sku','is_active','images','variants','reviews','new_review','questions','new_question']
+            'brand','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist']
 
     def get_seller_name(self, obj):
        return obj.seller.user.username
@@ -157,7 +171,14 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         url=reverse(f'product-review',request=request)
         return f'{url}?q={obj.id}'
     
+    def get_whishlist(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse(f'whishlist',request=request)
+        return f'{url}?q={obj.id}'
 
+    
 class ProductCreateSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
@@ -178,7 +199,7 @@ class ProductCreateSerializers(serializers.ModelSerializer):
     class Meta:
         model=models.Product
         fields=['images','product_name','category_name','description','base_price',
-                'category','brand_name','brand','sku','is_active','images','variants',]
+                'category','brand_name','brand','sku','is_active','images','variants']
 
     def create(self, validated_data):
         image_data=validated_data.pop('images',[])
@@ -205,13 +226,21 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name=serializers.CharField(source='category.name',read_only=True)
     category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
     brand_name=  serializers.CharField(source='brand.name',read_only=True)
-    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
-    reviews=ReviewSerializers(many=True,read_only=True)     
+    brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)    
+    product_detail=serializers.SerializerMethodField()
+
 
     class Meta:
         model=models.Product
         fields=['product_name','description','category_name','base_price',
-                'category','brand_name','brand','reviews']
+                'category','brand_name','brand','product_detail']
+        
+    def get_product_detail(self,obj):
+        request=self.context.get('request')
+        if request is None:
+            return None
+        url=reverse(f'product-detail',kwargs={"pk":obj.id},request=request)
+        return f'{url}'
 
 
 class AddressSerializers(serializers.ModelSerializer):
@@ -219,7 +248,8 @@ class AddressSerializers(serializers.ModelSerializer):
     
     class Meta:
         model=models.Address
-        fields=['user','address_type','house_no','street','city','state','country','postal_code','phone_number','other_number']
+        fields=['user','address_type','house_no','street','city','state','country',
+                'postal_code','phone_number','other_number']
 
     def create(self, validated_data):
         validated_data['user']=self.context['request'].user
@@ -299,8 +329,41 @@ class CartItemCreateSerializers(serializers.ModelSerializer):
         return super().create(validated_data)
     
 
+class BrandSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model =models.Brand
+        fields = '__all__'
 
 
+class WhishlistCreateSerializer(serializers.ModelSerializer):
 
+    class Meta:
+        model=models.Whishlist
+        fields=[]
 
+    def validate(self,attrs):
+        user=self.context['request'].user
+        product_id=self.context['id']
+        if models.Whishlist.objects.filter(user=user,
+                                           product_id=product_id).exists(): # filter does not returns None its returns []
+            raise serializers.ValidationError(
+               "This product is already in your wishlist."
+            )
+        return attrs
     
+    def create(self,validated_data):
+
+        product_id=self.context['id']
+        validated_data["product_id"]=product_id
+        validated_data['user']=self.context['request'].user
+        return super().create(validated_data)
+
+class WhishlistReadSerializer(serializers.ModelSerializer):
+
+    product=ProductSerializer(read_only=True)
+    
+    class Meta:
+        model=models.Whishlist
+        fields=['product']
+

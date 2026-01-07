@@ -140,7 +140,6 @@ customer_qxns=CustomerQuestion.as_view()
 
 class CartItem(APIView):
    
-
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['user'] = self.request.user
@@ -208,7 +207,7 @@ class CartItem(APIView):
         cart_item.delete()
 
         return Response(
-                {"message":"deleted succefully"},
+                {"message":"deleted successfully"},
                 status=200
             )
               
@@ -229,6 +228,103 @@ class ReviewView(APIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data,status=status.HTTP_201_CREATED)
-        return Response(serializer.error_messages,status=status.HTTP_400_BAD_REQUEST)
-        
-Review_list_view=ReviewView.as_view()
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self,request):
+
+        product_id = request.GET.get('q')  
+        if not product_id:
+            return Response(
+                {"error": "Product id (q) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        review=models.Review.objects.filter(
+            user=request.user,
+            product_id=product_id
+        ).first()
+
+        if not review:
+            return Response(
+               { "error":"review does not exis"},
+               status=status.HTTP_404_NOT_FOUND
+            )
+        else:
+            serializer=serializers.ReviewSerializers(review,
+                                                     data=request.data,
+                                                     partial=True,
+                                                     context={'id': product_id,'request':request})
+            if serializer.is_valid():
+               serializer.save()
+               return Response(serializer.data,status=status.HTTP_201_CREATED)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST) 
+    
+    def delete(self,request):
+        product_id = request.GET.get('q')  
+        if not product_id:
+            return Response(
+                {"error": "Product id (q) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+        count_review,_=models.Review.objects.filter(
+            user=request.user,
+            product_id=product_id
+        ).delete()
+
+        if count_review==0:
+            return Response({"error":"review is not found"},
+                            status=status.HTTP_404_NOT_FOUND)
+     
+        return Response({"message":"deleted successfully"},status=status.HTTP_200_OK)
+    
+review_list_view=ReviewView.as_view()
+
+
+class BrandListCreateview(generics.ListCreateAPIView):
+    queryset=models.Brand.objects.all()
+    serializer_class=serializers.BrandSerializer
+
+brand_list_create_view=BrandListCreateview.as_view()
+
+
+class WhishView(APIView):
+    queryset=models.Whishlist.objects.all()
+
+    def get(self,request):
+        queryset = self.queryset.filter(user=request.user)
+        serializer=serializers.WhishlistReadSerializer(queryset,many=True,
+                                                   context={"request":request})
+        return Response(serializer.data,status=status.HTTP_200_OK)
+
+    def post(self,request):
+        product_id = request.GET.get('q')  
+        if not product_id:
+            return Response(
+                {"error": "Product id (q) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer=serializers.WhishlistCreateSerializer(data=request.data,
+                                                   context={"request":request,"id":product_id})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self,request):
+        product_id = request.GET.get('q')  
+        if not product_id:
+            return Response(
+                {"error": "Product id (q) is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        deleted_count,_=self.queryset.filter(user=self.request.user,product_id=product_id).delete()
+
+        if deleted_count==0:
+            return Response({"error":"item is not found"},
+                            status=status.HTTP_404_NOT_FOUND)
+    
+        return Response({"message":"deleted successfully"},status=status.HTTP_200_OK)
+
+whish_list_createview = WhishView.as_view()
