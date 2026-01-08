@@ -1,13 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework import generics,mixins,status
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from . import models
 from . import serializers
 from django.contrib.auth.models import User
 from inventory.models import Seller
 from django.shortcuts import get_object_or_404
-
+import boto3
+from django.conf import settings
 
 class ProductAPIView(APIView):
     queryset=models.Product.objects.all()
@@ -28,9 +30,18 @@ class ProductAPIView(APIView):
 product_view=ProductAPIView.as_view()
 
 
-class ProductCreateGenericView(generics.CreateAPIView):
-    queryset = models.Product.objects.all()
-    serializer_class = serializers.ProductCreateSerializers
+class ProductCreateGenericView(APIView):
+
+    def post(self,request):
+        serializer=serializers.ProductCreateSerializers(data=request.data,context={'request':request})
+        if serializer.is_valid():
+            product=serializer.save()
+            print(f'product_id{product.id}')
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+            
+
 product_create=ProductCreateGenericView.as_view()
 
 
@@ -80,16 +91,59 @@ class ProductSearch(APIView):
 product_search_view=ProductSearch.as_view()
 
 
-class ProductImageListview(generics.RetrieveAPIView):
+class ProductImageListview(APIView):
     queryset = models.ProductImage.objects.all()
-    serializer_class=serializers.ProductImageSerializers
+    s3_client=boto3.client("s3",
+                           aws_access_key_id = settings.AWS_ACCESS_KEY_ID,
+                           aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                            region_name=settings.AWS_S3_REGION_NAME )
+
+    def get(self,request):
+        user=self.request.user
+        file_name=self.request.GET.get('file_name')
+
+        presigned_urls=self.s3_client.generate_presigned_url(
+            'put_object',
+            Params={'Bucket':settings.AWS_STORAGE_BUCKET_NAME,'Key':f'{user}/{file_name}'},
+            ExpiresIn=3600
+        )
+        url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonsaws.com/{user}/{file_name}'
+        
+        return Response({'upload_url':presigned_urls,'file_url':url,'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{file_name}'})
+    
+    def post(self,request):
+        pass
+
 
 productImage_retrieve_view=ProductImageListview.as_view()
 
 
-class AddressView(generics.ListCreateAPIView):
-    queryset = models.Address.objects.all()
+class AddressView(generics.GenericAPIView):
     serializer_class = serializers.AddressSerializers
+
+    def get_queryset(self):
+        return models.Address.objects.filter(user=self.request.user)
+    
+    def get(self,request):
+        queryset=self.get_queryset()
+        serializer=self.get_serializer(queryset,many=True)
+        return Response(serializer.data,status=status.HTTP_200_OK)
+    
+    def post(self,request):
+        serializer=self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data,status=status.HTTP_201_CREATED)
+    
+    def patch(self,request):
+        address=self.get_queryset()
+        if not address:
+            return Response({"error":"Address not Found"},status=404)
+        serializer=self.get_serializer(data=request.data,partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data,status=status.HTTP_200_OK)
+
 address_create=AddressView.as_view()
 
 
@@ -139,7 +193,8 @@ customer_qxns=CustomerQuestion.as_view()
 
 
 class CartItem(APIView):
-   
+
+    permission_classes=[IsAuthenticated]
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['user'] = self.request.user
@@ -152,7 +207,6 @@ class CartItem(APIView):
         return Response(serializer.data)
 
     def post(self,request):
-
         product_id=request.GET.get('product')
         variant_id=request.GET.get('variant')
         
@@ -215,8 +269,10 @@ cartitem=CartItem.as_view()
 
 
 class ReviewView(APIView):
-  
+
+    permission_classes=[IsAuthenticated]
     queryset=models.Review.objects.all()
+
     def post(self,request):
         product_id = request.GET.get('q')  
         if not product_id:
@@ -289,6 +345,7 @@ brand_list_create_view=BrandListCreateview.as_view()
 
 class WhishView(APIView):
     queryset=models.Whishlist.objects.all()
+    permission_classes=[IsAuthenticated]
 
     def get(self,request):
         queryset = self.queryset.filter(user=request.user)

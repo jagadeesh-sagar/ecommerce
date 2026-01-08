@@ -184,7 +184,7 @@ class ProductCreateSerializers(serializers.ModelSerializer):
     product_name=serializers.CharField(source="name")
     category_name=serializers.CharField(source='category.name',read_only=True)
     brand_name=  serializers.CharField(source='brand.name',read_only=True)
-    images=ProductImageSerializers(many=True)
+    # images=ProductImageSerializers(many=True)
     variants=ProductVariantSerializers(many=True,required=False)
 
     category = serializers.SlugRelatedField(
@@ -198,11 +198,13 @@ class ProductCreateSerializers(serializers.ModelSerializer):
 
     class Meta:
         model=models.Product
-        fields=['images','product_name','category_name','description','base_price',
-                'category','brand_name','brand','sku','is_active','images','variants']
+        fields=['id','product_name','category_name','description','base_price',
+                'category','brand_name','brand','sku','is_active','variants']
+        
+        read_only_fields=['id']
 
     def create(self, validated_data):
-        image_data=validated_data.pop('images',[])
+        # image_data=validated_data.pop('images',[])
         variant_data=validated_data.pop('variants',[])
 
         user = self.context['request'].user
@@ -211,8 +213,8 @@ class ProductCreateSerializers(serializers.ModelSerializer):
 
         product=models.Product.objects.create(**validated_data)
 
-        for image in image_data:
-            models.ProductImage.objects.create(product=product,**image)
+        # for image in image_data:
+        #     models.ProductImage.objects.create(product=product,**image)
         
         for variant in variant_data:
             models.ProductVariant.objects.create(product=product,**variant)

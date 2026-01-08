@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import datetime
+import boto3
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -161,4 +162,16 @@ SIMPLE_JWT={
   'AUTH_HEADER_TYPES':["Bearer"],
   "ACCESS_TOKEN_LIFETIME":datetime.timedelta(minutes=15) ,
   "REFRESH_TOKEN_LIFETIME":datetime.timedelta(minutes=45)
+
+
 }
+
+ssm=boto3.client('ssm',region_name=os.getenv('AWS_REGION','ap-south-1'))
+
+def get_ssm_param(name):
+  return ssm.get_parameter(Name=name,WithDecryption=True)['Parameter']['Value']
+
+AWS_ACCESS_KEY_ID = get_ssm_param('/Ecommerce/aws_access_key')
+AWS_SECRET_ACCESS_KEY = get_ssm_param('/Ecommerce/aws_secret_access_key')
+AWS_S3_REGION_NAME = get_ssm_param('/Ecommerce/aws_s3_region_name')
+AWS_STORAGE_BUCKET_NAME = get_ssm_param('/StudyBud/s3_bucket_name')
