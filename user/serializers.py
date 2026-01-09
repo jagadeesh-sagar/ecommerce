@@ -58,7 +58,7 @@ class ProductVariantSerializers(serializers.ModelSerializer):
  
     class Meta:
         model=models.ProductVariant
-        fields=['color','size','price','stock_qty']
+        fields=['color','size','price','stock_qty','sku']
 
     def get_product_name(self,obj):
        return obj.product.name
@@ -152,7 +152,7 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist']
+            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist']
 
     def get_seller_name(self, obj):
        return obj.seller.user.username
@@ -199,13 +199,20 @@ class ProductCreateSerializers(serializers.ModelSerializer):
     class Meta:
         model=models.Product
         fields=['id','product_name','category_name','description','base_price',
-                'category','brand_name','brand','sku','is_active','variants']
+                'category','brand_name','brand','stock_qty','sku','is_active','variants']
         
         read_only_fields=['id']
 
     def create(self, validated_data):
         # image_data=validated_data.pop('images',[])
         variant_data=validated_data.pop('variants',[])
+
+        if variant_data:
+            variant_stock=sum(v.get('stock_qty') for v in variant_data)
+            validated_data['stock_qty']=variant_stock
+
+        elif "stock_qty" not in validated_data:
+            validated_data['stock_qty']=0
 
         user = self.context['request'].user
         seller=Seller.objects.get(user=user)

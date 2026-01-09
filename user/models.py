@@ -73,6 +73,7 @@ class Product(models.Model):
     base_price=models.DecimalField(max_digits=10,decimal_places=2,null=False)
     category=models.ForeignKey(Category,on_delete=models.CASCADE,related_name='products')
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='products')
+    stock_qty=models.IntegerField(default=0)
     sku = models.CharField(max_length=100, unique=True, null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

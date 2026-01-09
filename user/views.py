@@ -32,10 +32,20 @@ product_view=ProductAPIView.as_view()
 
 class ProductCreateGenericView(APIView):
 
+    sns_client=boto3.client("sns",aws_access_key_id = settings.AWS_ACCESS_KEY_ID,
+                           aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                           region_name=settings.AWS_S3_REGION_NAME)
+    SNS_TOPIC_ARN=settings.AWS_SNS_ARN
+    def sns_publish(self,message,user):
+        self.sns_client.publish(TopicArn=self.SNS_TOPIC_ARN,
+                                Message=f'$Mr.{user.username} you added {message}',
+                                Subject="seller created product",)
+
     def post(self,request):
         serializer=serializers.ProductCreateSerializers(data=request.data,context={'request':request})
         if serializer.is_valid():
             product=serializer.save()
+            self.sns_publish(product.name,self.request.user)
             print(f'product_id{product.id}')
             return Response(serializer.data,status=status.HTTP_201_CREATED)
         
@@ -101,18 +111,22 @@ class ProductImageListview(APIView):
     def get(self,request):
         user=self.request.user
         file_name=self.request.GET.get('file_name')
+        file_type=self.request.GET.get('file_type')
 
         presigned_urls=self.s3_client.generate_presigned_url(
             'put_object',
-            Params={'Bucket':settings.AWS_STORAGE_BUCKET_NAME,'Key':f'{user}/{file_name}'},
+            Params={'Bucket':settings.AWS_STORAGE_BUCKET_NAME,'Key':f'{user}/{file_type}/{file_name}'},
             ExpiresIn=3600
         )
-        url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonsaws.com/{user}/{file_name}'
+        url=f'https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonsaws.com/{user}/{file_type}/{file_name}'
         
-        return Response({'upload_url':presigned_urls,'file_url':url,'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{file_name}'})
+        return Response({'upload_url':presigned_urls,'file_url':url,'bucket':settings.AWS_STORAGE_BUCKET_NAME,'key':f'{user}/{file_type}/{file_name}'})
     
     def post(self,request):
-        pass
+        serializer=serializers.ProductImageSerializers(data=request.data,context={"request":request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_201_CREATED)
 
 
 productImage_retrieve_view=ProductImageListview.as_view()
