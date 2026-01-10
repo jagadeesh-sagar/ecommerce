@@ -16,6 +16,5 @@ urlpatterns=[
     path('cart/',views.cartitem,name='cart-item'),
     path('brand/',views.brand_list_create_view,name='brands'),
     path('whishlist/',views.whish_list_createview,name='whishlist'),
-
-
+    path('order/',views.order_list_create_view,name='order'),
 ]

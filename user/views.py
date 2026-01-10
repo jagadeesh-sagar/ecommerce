@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 import boto3
 from django.conf import settings
 
+
 class ProductAPIView(APIView):
     queryset=models.Product.objects.all()
 
@@ -49,7 +50,8 @@ class ProductCreateGenericView(APIView):
             print(f'product_id{product.id}')
             return Response(serializer.data,status=status.HTTP_201_CREATED)
         
-        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors,
+        status=status.HTTP_400_BAD_REQUEST)
             
 
 product_create=ProductCreateGenericView.as_view()
@@ -399,3 +401,22 @@ class WhishView(APIView):
         return Response({"message":"deleted successfully"},status=status.HTTP_200_OK)
 
 whish_list_createview = WhishView.as_view()
+
+
+class OrderView(APIView):
+
+    def post(self,request):
+         serializer=serializers.OrderSerializer(data=request.data,context={'request':request})
+         if serializer.is_valid():
+             serializer.save()
+             return Response(serializer.data,status=status.HTTP_201_CREATED)
+         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+    
+    def get(self,request):
+        queryset=models.Order.objects.filter(user=self.request.user)
+        serializer=serializers.OrderSerializer(queryset,many=True,context={"request":request})
+        return Response(serializer.data,status=status.HTTP_200_OK)
+
+order_list_create_view=OrderView.as_view()
+
+

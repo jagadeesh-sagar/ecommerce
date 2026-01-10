@@ -7,6 +7,8 @@ from inventory.models import Seller
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework.reverse import reverse
+from django.db import transaction
+from decimal import Decimal 
 
 
 class CategorySerializers(serializers.ModelSerializer):
@@ -376,3 +378,66 @@ class WhishlistReadSerializer(serializers.ModelSerializer):
         model=models.Whishlist
         fields=['product']
 
+class OrderItemSerializer(serializers.ModelSerializer):
+    product_name=serializers.CharField(source="product.name",read_only=True)
+    class Meta:
+        model=models.OrderItem
+        fields=["product","product_name","product_variant","quantity"]
+
+class OrderSerializer(serializers.ModelSerializer):
+
+    items=OrderItemSerializer(required=True,many=True)
+    
+    class Meta:
+        model=models.Order
+        fields=['shipping_address','billing_address','coupon','items']
+        read_only_fields = ['order_number', 'subtotal', 'total_amount']
+
+    @transaction.atomic
+    def create(self,validated_data):
+            order_item=validated_data.pop('items')
+            import uuid
+            order_number = f"ORD-{uuid.uuid4().hex[:10].upper()}"
+            validated_data['order_number']=order_number
+
+            subtotal=0
+            if order_item:
+                product=order_item['product']
+                variant=order_item.get('product_variant')
+                quantity=order_item['quantity']
+                total_price=0
+
+                unit_price=variant.price if variant else product.base_price
+                order_item['unit_price']=unit_price
+                total_price=quantity*unit_price
+                subtotal+=total_price
+
+            validated_data['subtotal']=subtotal
+            validated_data['tax_amount']=subtotal* Decimal(0.18)
+            validated_data['total_amount']=subtotal+validated_data['tax_amount']
+            validated_data['user']=self.context['request'].user
+
+        
+            validated_data['discount_amount']=Decimal('0')
+            if 'coupon' in validated_data and validated_data['coupon']:
+        
+              validated_data['discount_amount'] = subtotal * Decimal('0.10')
+        
+            order=models.Order.objects.create(
+                **validated_data
+            )
+            
+            models.OrderItem.objects.create(order=order,
+            product=product,
+            product_variant=variant,
+            quantity=quantity,
+            unit_price=unit_price,
+            total_price=total_price)
+
+            return order
+
+class OrderReadSerializers(serializers.ModelSerializer):
+
+    class Meta:
+        model=models.Order
+        fields="__all__"
