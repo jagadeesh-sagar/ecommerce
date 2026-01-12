@@ -60,7 +60,7 @@ class ProductVariantSerializers(serializers.ModelSerializer):
  
     class Meta:
         model=models.ProductVariant
-        fields=['color','size','price','stock_qty','sku']
+        fields=['id','color','size','price','stock_qty','sku']
 
     def get_product_name(self,obj):
        return obj.product.name
@@ -149,12 +149,12 @@ class ProductDetailSerializers(serializers.ModelSerializer):
     questions=QnA(many=True)
     whishlist=serializers.SerializerMethodField()
 
-
     class Meta:
         model=models.Product
         fields=['seller','seller_name','images','product_name','category_name'
                 ,'description','base_price','category','brand_name',
-            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist']
+            'brand','stock_qty','sku','is_active','images','variants','reviews','new_review','questions','new_question','whishlist'
+            ]
 
     def get_seller_name(self, obj):
        return obj.seller.user.username
@@ -180,7 +180,7 @@ class ProductDetailSerializers(serializers.ModelSerializer):
         url=reverse(f'whishlist',request=request)
         return f'{url}?q={obj.id}'
 
-    
+
 class ProductCreateSerializers(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="name")
@@ -314,29 +314,47 @@ class CartItemRetrieveSerializers(serializers.ModelSerializer):
 
 class CartItemCreateSerializers(serializers.ModelSerializer):
 
+    product=serializers.PrimaryKeyRelatedField(
+        queryset=models.Product.objects.all()
+    )
+
+    product_varaint=serializers.PrimaryKeyRelatedField(
+        queryset=models.ProductVariant.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
     class Meta:
         model = models.CartItem
-        fields = ['quantity']
+        fields = ['product','product_varaint','quantity']
+
+    def validate(self, attrs):
+        
+        prodcut=attrs.get('product')
+        variant=attrs.get('product_varaint')
+
+        if variant and variant.Product != prodcut:
+            raise serializers.ValidationError(
+                "Selected variant does not belong to this product")
+        
+        if variant:
+            if variant.stock_qty>attrs['quantity']:
+                raise serializers.ValidationError(
+                f"Only {variant.stock_qty} items available"
+                )
+            else :
+                if prodcut.stock_qty > attrs['quantity']:
+                    raise serializers.ValidationError(
+                    f"Only {prodcut.stock_qty} items available"
+                    )
+
+        return super().validate(attrs)
 
     def create(self, validated_data):
     
         user = self.context['request'].user
         cart, created = models.Cart.objects.get_or_create(user=user)
-
-        product_id = self.context.get('product')
-        variant_id = self.context.get('variant')
-
-        product = models.Product.objects.get(id=product_id)
-
-        if variant_id == 0:
-            product_variant = None
-        else:
-            product_variant = models.ProductVariant.objects.get(id=variant_id)
-
         validated_data['cart'] = cart
-        validated_data['product'] = product
-        validated_data['product_variant'] = product_variant
-
         return super().create(validated_data)
     
 
@@ -441,3 +459,11 @@ class OrderReadSerializers(serializers.ModelSerializer):
     class Meta:
         model=models.Order
         fields="__all__"
+
+
+class PaymentSerializers(serializers.ModelSerializer):
+
+    class Meta:
+        model= models.Payment
+        fields="__all__"
+    
