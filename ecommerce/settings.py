@@ -13,6 +13,12 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import datetime
 import boto3
+import os
+
+ssm=boto3.client('ssm',region_name=os.getenv('AWS_REGION','ap-south-1'))
+
+def get_ssm_param(name):
+  return ssm.get_parameter(Name=name,WithDecryption=True)['Parameter']['Value']
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +34,21 @@ SECRET_KEY = 'django-insecure-!^kgc_w=so@79!s)v!o&#$^2jlmpl4rr7bdug&2xa=a2$nkvwu
 DEBUG = True
 
 ALLOWED_HOSTS = ['13.234.124.118','13.233.78.207','localhost','127.0.0.1']
+
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_URLS_REGEX = r"^/(user)/.*"
+
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173", 
+        "http://127.0.0.1:5173",
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        # Add your production frontend URLs here
+           "http://localhost:5173",
+    ]
 
 # Application definition
 
@@ -91,18 +112,18 @@ DATABASES = {
 
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'jaggu',  # Database name
-#         'USER': 'jagadeesh',  # MySQL username (e.g., 'root')
-#         'PASSWORD': 'jaggu2027',  # MySQL password
-#         'HOST': 'localhost',  # Or '127.0.0.1' or your MySQL server IP
-#         'PORT': '3306',  # Default MySQL port
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': get_ssm_param('/Ecommerce/db_name'),  # Database name
+#         'USER': 'postgres',  # MySQL username (e.g., 'root')
+#         'PASSWORD': get_ssm_param('/Ecommerce/db_passowrd'),  # MySQL password
+#         'HOST':get_ssm_param('/Ecommerce/db_DNS'),  # Or '127.0.0.1' or your MySQL server IP
+#         'PORT': '5432',  # Default MySQL port
 #         'OPTIONS': {
-#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-#             'charset': 'utf8mb4',
+#          'connect_timeout': 10,
 #         },
 #     }
 # }
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -165,11 +186,6 @@ SIMPLE_JWT={
 
 
 }
-
-ssm=boto3.client('ssm',region_name=os.getenv('AWS_REGION','ap-south-1'))
-
-def get_ssm_param(name):
-  return ssm.get_parameter(Name=name,WithDecryption=True)['Parameter']['Value']
 
 AWS_ACCESS_KEY_ID = get_ssm_param('/Ecommerce/aws_access_key')
 AWS_SECRET_ACCESS_KEY = get_ssm_param('/Ecommerce/aws_secret_access_key')

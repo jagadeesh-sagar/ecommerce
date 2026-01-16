@@ -6,10 +6,11 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
-from serializers import UserRegistrationSerializer
+from .serializers import UserRegistrationSerializer
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
-
+from datetime import timedelta,datetime
+from django.contrib.auth import authenticate
 
 
 class UserRegistrationView(generics.CreateAPIView):
@@ -39,12 +40,12 @@ class UserRegistrationView(generics.CreateAPIView):
         cookie_max_age=7*24*60*60 #seconds (7 days)
         response.set_cookie(
             key='refresh_token',
-            value=str(refresh)
+            value=str(refresh),
             httponly=True,
             secure=False ,
             samesite="Strict",
-            max_age=cookie_max_age,
-            expires=now()+timedata(seconds=cookie_max_age)
+            # max_age=cookie_max_age,
+            expires=datetime.now()+timedelta(seconds=cookie_max_age)
 
         )
 
@@ -55,6 +56,80 @@ class UserRegistrationView(generics.CreateAPIView):
             samesite="Strict"
 
         )
+        return response
+
+
+class UserLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+    
+        if not username or not password:
+            return Response(
+                {'error': 'Please provide both username and password'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = authenticate(username=username, password=password)
+
+        if user is None:
+            return Response(
+                {'error': 'Invalid credentials'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        if not user.is_active:
+            return Response(
+                {'error': 'User account is disabled'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        refresh = RefreshToken.for_user(user)
+
+        response = Response({
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+            },
+            'message': 'Login successful'
+        }, status=status.HTTP_200_OK)
+
+        # Set cookies
+        cookie_max_age = 7 * 24 * 60 * 60  # 7 days in seconds
+
+        response.set_cookie(
+            key='refresh_token',
+            value=str(refresh),
+            httponly=True,
+            secure=False,  # true in prod
+            samesite='Strict',
+            max_age=cookie_max_age
+        )
+
+        response.set_cookie(
+            key='access',
+            value=str(refresh.access_token),
+            httponly=False,
+            secure=False,  # true in prod https
+            samesite='Strict'
+        )
+        return response
+    
+class UserLogoutView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        response = Response({
+            'message': 'Logout successful'
+        }, status=status.HTTP_200_OK)
+
+        # del cookies
+        response.delete_cookie('refresh_token')
+        response.delete_cookie('access')
+
         return response
     
 

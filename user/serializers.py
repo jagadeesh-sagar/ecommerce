@@ -397,6 +397,7 @@ class WhishlistReadSerializer(serializers.ModelSerializer):
         fields=['product']
 
 class OrderItemSerializer(serializers.ModelSerializer):
+
     product_name=serializers.CharField(source="product.name",read_only=True)
     class Meta:
         model=models.OrderItem
@@ -456,14 +457,19 @@ class OrderSerializer(serializers.ModelSerializer):
 
 class OrderReadSerializers(serializers.ModelSerializer):
 
+    shipping_address=AddressSerializers(read_only=True)
+    billing_address=AddressSerializers(read_only=True)
+    items=OrderItemSerializer(read_only=True,many=True)
+
     class Meta:
         model=models.Order
-        fields="__all__"
+        fields=['items','shipping_address','billing_address','subtotal','discount_amount',
+                'shipping_cost','tax_amount','total_amount','coupon','status','order_date']
 
 
 class PaymentSerializers(serializers.ModelSerializer):
 
     class Meta:
         model= models.Payment
-        fields="__all__"
+        fields=["payment_method"]
     
