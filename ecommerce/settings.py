@@ -240,6 +240,15 @@ DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
     "instructions": "Read-only MCP tools for ecommerce users, carts, and orders.",
 }
 
+
+# ── Anthropic / MCP proxy ────────────────────────────────────────────────────
+# Replace these values with your real keys before running.
+# In production, load them from SSM / env vars just like the AWS keys above.
+ANTHROPIC_API_KEY = get_ssm_param('/Ecommerce/aws_api_key')   # TODO: move to SSM
+MCP_SERVER_URL    =  "https://lid-canon-sedative.ngrok-free.dev"    # TODO: public URL for prod
+# ────────────────────────────────────────────────────────────────────────────
+
+
 # settings.py
 # REST_FRAMEWORK = {  # if we want decimal values to be string Make it "True"  decimal on frontend caues rounding errors so string is better(True)
 #     'COERCE_DECIMAL_TO_STRING': False,

@@ -11,3 +11,4 @@ daphne==4.0.0
 celery 
 redis 
 django-celery-beat
+anthropic

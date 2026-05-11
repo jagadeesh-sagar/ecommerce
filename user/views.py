@@ -10,6 +10,8 @@ from api.authentication import CookieJWTAuthentication
 from . import models
 from . import serializers
 
+import anthropic
+from django.conf import settings
 
 
 class AddressView(generics.GenericAPIView):
@@ -494,3 +496,75 @@ class BrandListCreateview(generics.ListCreateAPIView):
 brand_list_create_view=BrandListCreateview.as_view()
 
     
+class AnthropicProxyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        prompt = request.data.get("prompt", "").strip()
+        if not prompt:
+            return Response(
+                {"error": "prompt is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Prefer the cookie; fall back to the Authorization header value
+        jwt_token = request.COOKIES.get("access", "")
+        if not jwt_token:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                jwt_token = auth_header.split(" ", 1)[1]
+
+        try:
+            client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+            message = client.beta.messages.create(
+                model="claude-opus-4-5",
+                max_tokens=4096,
+                betas=["mcp-client-2025-04-04"],
+                system=(
+                    "You are a helpful e-commerce assistant. "
+                    "Use the available tools to fulfil the user's request "
+                    "and respond in plain language."
+                ),
+                messages=[{"role": "user", "content": prompt}],
+                mcp_servers=[
+                    {
+                        "type": "url",
+                        "url": settings.MCP_SERVER_URL,
+                        "name": "ecommerce-mcp",
+                        "tool_configuration": {"enabled": True},
+                        "authorization_token": jwt_token,
+                    }
+                ],
+            )
+
+            # content is a mixed list: TextBlock, ToolUseBlock, ToolResultBlock …
+            # Pick the last TextBlock — that's Claude's final answer after tool calls.
+            text_blocks = [
+                block for block in message.content
+                if getattr(block, "type", None) == "text"
+            ]
+            response_text = (
+                text_blocks[-1].text
+                if text_blocks
+                else "I couldn't generate a response. Please try again."
+            )
+
+            return Response(
+                {"response": response_text},
+                status=status.HTTP_200_OK
+            )
+
+        except anthropic.APIError as e:
+            return Response(
+                {"error": f"Anthropic API error: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Unexpected error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+anthropic_proxy_view = AnthropicProxyView.as_view()

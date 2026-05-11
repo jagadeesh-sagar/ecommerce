@@ -1,5 +1,5 @@
 from rest_framework.permissions import BasePermission
-from .models import Order,OrderItem
+from .models import Order,OrderItem,Product
 
 class IsSeller(BasePermission):
     '''
@@ -35,8 +35,8 @@ class IsProductOwner(BasePermission):
     '''
 
     def has_object_permission(self, request, view, obj):
-        print(obj)
-        return request.user.is_authenticated and obj.product.seller.user==request.user
+    
+        return request.user.is_authenticated and obj.seller.user==request.user
     
 class IsAdminOrReadonly(BasePermission):
     def has_permission(self, request, view):

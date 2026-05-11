@@ -122,7 +122,12 @@ class ProductSearchSerializers(serializers.ModelSerializer):
     seller_name=serializers.CharField(source='seller.user.username',read_only=True)
     variants=ProductVariantSerializers(many=True,read_only=True)
 
-
+    product_detail = serializers.HyperlinkedIdentityField(
+        view_name='product-detail',
+        lookup_field='pk'
+    )
+    images = ProductImageSerializers(many=True, read_only=True)
+    
     category=serializers.PrimaryKeyRelatedField(queryset=models.Category.objects.all(),write_only=True)
 
     brand=serializers.PrimaryKeyRelatedField(queryset=models.Brand.objects.all(),write_only=True)
@@ -131,8 +136,8 @@ class ProductSearchSerializers(serializers.ModelSerializer):
 
     class Meta:
         model=models.Product
-        fields=['seller','seller_name','product_name','category_name',
-                'base_price','category','brand_name','variants','brand']
+        fields=['seller','seller_name','product_name','category_name',"images",
+                'base_price','category','brand_name','variants','brand','product_detail']
 
     def get_seller_name(self, obj):
        obj.seller.user.username
@@ -249,11 +254,13 @@ class ProductSerializer(serializers.ModelSerializer):
     product_detail = serializers.HyperlinkedIdentityField(
     view_name='product-detail',
     lookup_field='pk'
+
 )
+    images = ProductImageSerializers(many=True, read_only=True)
 
     class Meta:
         model=models.Product
-        fields=['product_name','description','category_name','base_price',
+        fields=['product_name','description','images','category_name','base_price',
                 'category','brand_name','brand','product_detail']
         
     # def get_product_detail(self,obj):
@@ -351,8 +358,6 @@ class CartItemRetrieveSerializers(serializers.ModelSerializer):
         return f'{url}{obj}'
 
 
-
-
 class CartItemCreateSerializers(serializers.ModelSerializer):
 
     product=serializers.PrimaryKeyRelatedField( 
@@ -429,6 +434,7 @@ class WhishlistCreateSerializer(serializers.ModelSerializer):
         validated_data['user']=self.context['request'].user
         return super().create(validated_data)
 
+
 class WhishlistReadSerializer(serializers.ModelSerializer):
 
     product=ProductSerializer(read_only=True)
@@ -437,12 +443,14 @@ class WhishlistReadSerializer(serializers.ModelSerializer):
         model=models.Whishlist
         fields=['product']
 
+
 class OrderItemSerializer(serializers.ModelSerializer):
 
     product_name=serializers.CharField(source="product.name",read_only=True)
     class Meta:
         model=models.OrderItem
         fields=["product","product_name","product_variant","quantity"]
+
 
 class OrderSerializer(serializers.ModelSerializer):
 
@@ -470,7 +478,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 variant=item.get('product_variant')
                 quantity=item['quantity']
 
-                if product.stock < quantity:
+                if product.stock_qty < quantity:
                   raise serializers.ValidationError("Out of stock")
 
                 unit_price=variant.price if variant else product.base_price
@@ -478,12 +486,12 @@ class OrderSerializer(serializers.ModelSerializer):
 
                 subtotal+=total_price
 
-                product.stock -= quantity
+                product.stock_qty -= quantity
                 product.save()
 
                 order_item_objects.append(
                     models.OrderItem(
-                        order=order,
+                
                         product=product,
                         product_variant=variant,
                         quantity=quantity,
@@ -527,7 +535,7 @@ class OrderReadSerializers(serializers.ModelSerializer):
 
     class Meta:
         model=models.Order
-        fields=['items','shipping_address','billing_address','subtotal','discount_amount',
+        fields=['id','items','shipping_address','billing_address','subtotal','discount_amount',
                 'shipping_cost','tax_amount','total_amount','coupon','status','order_date']
 
 
@@ -537,3 +545,25 @@ class PaymentSerializers(serializers.ModelSerializer):
         model= models.Payment
         fields=["payment_method"]
     
+
+class SellerOrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+
+    class Meta:
+        model = models.OrderItem
+        fields = ['product', 'product_name', 'product_variant', 'quantity']
+
+
+class SellerOrderSerializer(serializers.ModelSerializer):
+    items           = SellerOrderItemSerializer(many=True, read_only=True)
+    shipping_address = AddressSerializers(read_only=True)
+    buyer_name      = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model  = models.Order
+        fields = [
+            'id', 'buyer_name', 'status', 'order_date',
+            'total_amount', 'subtotal', 'tax_amount',
+            'discount_amount', 'shipping_cost',
+            'items', 'shipping_address',
+        ]

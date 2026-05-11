@@ -4,7 +4,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated,AllowAny,IsAdminUser
 from rest_framework.pagination import LimitOffsetPagination,CursorPagination,PageNumberPagination
 
-from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner,IsAdminOrReadonly
+from .permissions import IsBuyer,IsSeller,IsSellerOrReadOnly,IsProductOwner,IsAdminOrReadonly,IsOrderParticipant
+from . import models
+from inventory.models import Seller
 from . import models
 from . import serializers
 from . import tasks
@@ -161,3 +163,26 @@ class OrderView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 order_list_create_view=OrderView.as_view()
+
+
+class SellerOrderListView(APIView):
+    permission_classes = [IsSeller]
+
+    def get(self, request):
+        seller_name=Seller.objects.get(user=self.request.user)
+        queryset = (
+            models.Order.objects
+            .filter(items__product__seller=seller_name)
+            .distinct()
+            .select_related('shipping_address', 'user')
+            .prefetch_related('items', 'items__product', 'items__product_variant')
+            .order_by('-order_date')
+        )
+        paginator = StandardPagination()
+        result_page = paginator.paginate_queryset(queryset, request)
+        serializer = serializers.SellerOrderSerializer(
+            result_page, many=True, context={'request': request}
+        )
+        return paginator.get_paginated_response(serializer.data)
+
+seller_order_list_view = SellerOrderListView.as_view()
