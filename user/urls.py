@@ -19,5 +19,9 @@ urlpatterns=[
     path('whishlist/',cart_views.wishlist_view,name='whishlist'),
     path('order/',order_views.order_list_create_view,name='order'),
     path('seller/orders/', order_views.seller_order_list_view),
-    path('payment/',payment_views.payment_list_create_view,name='payment'),
+    path("payments/cod/", payment_views.CashOnDeliveryView.as_view()),        
+    path("payments/cod/<int:order_id>/confirm/", payment_views.ConfirmCODPaymentView.as_view()),
+    path("payments/create/", payment_views.CreateRazorpayOrderView.as_view()),
+    path("payments/verify/", payment_views.VerifyPaymentView.as_view()),
+
 ]

@@ -154,8 +154,7 @@ class OrderView(APIView):
             .filter(user=self.request.user) \
             .select_related('shipping_address','billing_address')\
             .prefetch_related('items','items__product','items__product_variant')
-        print(queryset.query)
-
+    
         paginator=StandardPagination()
         result_page=paginator.paginate_queryset(queryset,request)
 

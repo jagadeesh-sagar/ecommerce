@@ -346,9 +346,11 @@ class CartItemRetrieveSerializers(serializers.ModelSerializer):
     product=ProductCartSerializers(read_only=True)
     cartitem=serializers.SerializerMethodField()
     product_variant=ProductVariantSerializers(many=True,read_only=True)
+    cartprice=serializers.SerializerMethodField() 
+
     class Meta:
         model=models.CartItem
-        fields=['cart','product','product_variant','quantity','cartitem']
+        fields=['cart','product','product_variant','quantity','cartitem','cartprice']
 
     def get_cartitem(self,obj):
         request=self.context.get('request')
@@ -356,6 +358,9 @@ class CartItemRetrieveSerializers(serializers.ModelSerializer):
             return None
         url=reverse(f'cart-item',request=request)
         return f'{url}{obj}'
+    
+    def get_cartprice(self, obj):
+        return obj.product.base_price * obj.quantity
 
 
 class CartItemCreateSerializers(serializers.ModelSerializer):
@@ -453,79 +458,86 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(required=True, many=True)
 
-    items=OrderItemSerializer(required=True,many=True)
-    
     class Meta:
-        model=models.Order
-        fields=['shipping_address','billing_address','coupon','items']
-        read_only_fields = ['order_number', 'subtotal', 'total_amount']
+        model = models.Order
+        fields = ['id', 'order_number', 'shipping_address', 'billing_address', 
+                  'coupon', 'items', 'subtotal', 'tax_amount', 
+                  'discount_amount', 'total_amount', 'status']
+        read_only_fields = ['id', 'order_number', 'subtotal', 'tax_amount',
+                            'discount_amount', 'total_amount', 'status']
 
     @transaction.atomic
-    def create(self,validated_data):
-            order_items=validated_data.pop('items')
+    def create(self, validated_data):
+        order_items = validated_data.pop('items')
 
-            if not order_items:
-                 raise serializers.ValidationError("Order must contain at least one item")
+        if not order_items:
+            raise serializers.ValidationError("Order must contain at least one item")
 
-            subtotal=Decimal('0')
-            order_item_objects=[]
+        subtotal = Decimal('0')
+        order_item_objects = []
 
-            for item in order_items:
+        for item in order_items:
+            product = models.Product.objects.select_for_update().get(id=item['product'].id)
+            variant = item.get('product_variant')
+            quantity = item['quantity']
 
-                product = models.Product.objects.select_for_update().get(id=item['product'].id)  # to prevent race condition in db
-
-                variant=item.get('product_variant')
-                quantity=item['quantity']
-
-                if product.stock_qty < quantity:
-                  raise serializers.ValidationError("Out of stock")
-
-                unit_price=variant.price if variant else product.base_price
-                total_price=quantity*unit_price
-
-                subtotal+=total_price
-
-                product.stock_qty -= quantity
-                product.save()
-
-                order_item_objects.append(
-                    models.OrderItem(
-                
-                        product=product,
-                        product_variant=variant,
-                        quantity=quantity,
-                        unit_price=unit_price,
-                        total_price=total_price
-                    )
+            if product.stock_qty < quantity:
+                raise serializers.ValidationError(
+                    f"'{product.name}' only has {product.stock_qty} units left"
                 )
 
-            import uuid
-            order_number = f"ORD-{uuid.uuid4().hex[:10].upper()}"
+            unit_price = variant.price if variant else product.base_price
+            total_price = quantity * unit_price
 
-            tax_amount = subtotal * Decimal('0.18')
-            discount_amount = Decimal('0')
+            subtotal += total_price
 
-            if validated_data.get('coupon'):
-                discount_amount = subtotal * Decimal('0.10')
+            #  Don't deduct stock here — lets do  it in webhook after payment confirmed
+            # product.stock_qty -= quantity
+            # product.save()
 
-            order = models.Order.objects.create(
-                user=self.context['request'].user,
-                order_number=order_number,
-                subtotal=subtotal,
-                tax_amount=tax_amount,
-                discount_amount=discount_amount,
-                total_amount=subtotal + tax_amount - discount_amount,
-                **validated_data
+            order_item_objects.append(
+                models.OrderItem(
+                    product=product,
+                    product_variant=variant,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    total_price=total_price,
+                    discount_applied=Decimal('0'),
+                )
             )
+        import uuid
 
-            for obj in order_item_objects:
-                obj.order = order
+        order_number = f"ORD-{uuid.uuid4().hex[:10].upper()}"
+        tax_amount = subtotal * Decimal('0.18')
+        discount_amount = Decimal('0')
 
-            models.OrderItem.objects.bulk_create(order_item_objects)
+        if validated_data.get('coupon'):
+            discount_amount = subtotal * Decimal('0.10')
 
-            return order
+        order = models.Order.objects.create(
+            user=self.context['request'].user,
+            order_number=order_number,
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            discount_amount=discount_amount,
+            total_amount=subtotal + tax_amount - discount_amount,
+            status='pending',   # explicit
+            **validated_data
+        )
 
+        for obj in order_item_objects:
+            obj.order = order
+
+        models.OrderItem.objects.bulk_create(order_item_objects)
+
+        cart=models.Cart.objects.get(user=self.context['request'].user)
+        
+        models.CartItem.objects.filter(cart=cart).delete()
+
+        return order
+    
 
 class OrderReadSerializers(serializers.ModelSerializer):
 

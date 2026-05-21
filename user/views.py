@@ -141,7 +141,6 @@ class AddressView(generics.GenericAPIView):
         address_id=self.request.GET.get('q')
         address=self.get_queryset().filter(id=address_id).first()
 
-        print(address,address_id)
     
         if not address:
             return Response({"error":"Address not Found"},status=404)

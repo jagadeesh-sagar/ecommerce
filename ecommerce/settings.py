@@ -244,7 +244,7 @@ DJANGO_MCP_GLOBAL_SERVER_CONFIG = {
 # ── Anthropic / MCP proxy ────────────────────────────────────────────────────
 # Replace these values with your real keys before running.
 # In production, load them from SSM / env vars just like the AWS keys above.
-ANTHROPIC_API_KEY = get_ssm_param('/Ecommerce/aws_api_key')   # TODO: move to SSM
+ANTHROPIC_API_KEY = get_ssm_param('/Ecommerce/aws_anthropic_ai_api_key')   # TODO: move to SSM
 MCP_SERVER_URL    =  "https://lid-canon-sedative.ngrok-free.dev"    # TODO: public URL for prod
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -289,3 +289,6 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60 # SoftTimeLimitExceeded raised at 25 min
 
 # For periodic tasks (requires django-celery-beat):
 # INSTALLED_APPS += ['django_celery_beat']  something like inventory sync or any db sync we can use this
+
+RAZORPAY_KEY_ID =  get_ssm_param('/Ecommerce/aws_razorpay_id')
+RAZORPAY_KEY_SECRET = get_ssm_param('/Ecommerce/aws_razorpay_key_secret')
